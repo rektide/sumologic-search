@@ -12,7 +12,8 @@ var
 var defaults= {
 	deployment: "api.us2.sumologic.com",
 	pageLimit: 3000,
-	pagesMax: 50
+	pagesMax: 50,
+	interval: 3333
 }
 
 function configFile(){
@@ -41,16 +42,21 @@ function config(){
 		configFile(),
 		envs
 	]).then(values=> {
-		console.log(values)
 		// merge
 		var val= Object.assign.apply( null, values)
-		val.pageLimit= Number.parseInt( val.pageLimit)
-		if( isNaN( val.pageLimit)){
-			throw new Error( "pageLimit is not a number")
-		}
-		val.pagesMax= Number.parseInt( val.pagesMax)
-		if( isNaN( val.pagesMax)){
-			throw new Error( "pagesMax is not a number")
+		var unInt= [ "pageLimit", "pagesMax", "interval"].reduce( function( unInt, cur){
+			var num= val[cur]= Number.parseInt( val[ cur])
+			if( isNaN(num)){
+				if( !unInt){
+					unInt= [ cur]
+				}else{
+					unInt.push( cur)
+				}
+				return unInt
+			}
+		}, null)
+		if( unInt){
+			throw new Error( "Expected numerical value for configuration: "+ unInt.join(", "))
 		}
 		return val
 	})
