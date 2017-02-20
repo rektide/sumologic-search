@@ -26,7 +26,8 @@ var envs= {
 	accessId: process.env.SUMOLOGIC_ACCESS_ID,
 	deployment: process.env.SUMOLOGIC_DEPLOYMENT,
 	pageLimit: process.env.SUMOLOGIC_PAGE_LIMIT,
-	pagesMax: process.env.SUMOLOGIC_PAGES_MAX
+	pagesMax: process.env.SUMOLOGIC_PAGES_MAX,
+	interval: process.env.SUMOGLOGIC_INTERVAL
 }
 for( var i in envs){
 	if( envs[ i]=== undefined){
