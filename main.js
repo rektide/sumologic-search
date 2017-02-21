@@ -28,7 +28,7 @@ function main( query, from, to, timeZone){
 	// attempt to read "query" as a file, fallback to it as query-text
 	var contents= es6Promisify( fs.readFile)( query, "utf8").catch( _=> query)
 	// run search
-	var search= contents.then( query=> new SumologicSearch({
+	var search= contents.then( query=> SumologicSearch({
 		query, from, to, timeZone
 	}))
 	search.then( search=> search.forEach( console.log).then( _=> console.log("done")))

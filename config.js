@@ -10,10 +10,12 @@ var
   readFile= Es6Promisify( fs.readFile, fs)
 
 var defaults= {
+	accessId: null,
+	accessKey: null,
 	deployment: "api.us2.sumologic.com",
+	interval: 3333,
 	pageLimit: 3000,
-	pagesMax: 50,
-	interval: 3333
+	pagesMax: 50
 }
 
 function configFile(){
@@ -22,12 +24,12 @@ function configFile(){
 }
 
 var envs= {
-	accessKey: process.env.SUMOLOGIC_ACCESS_KEY,
 	accessId: process.env.SUMOLOGIC_ACCESS_ID,
+	accessKey: process.env.SUMOLOGIC_ACCESS_KEY,
 	deployment: process.env.SUMOLOGIC_DEPLOYMENT,
+	interval: process.env.SUMOGLOGIC_INTERVAL,
 	pageLimit: process.env.SUMOLOGIC_PAGE_LIMIT,
-	pagesMax: process.env.SUMOLOGIC_PAGES_MAX,
-	interval: process.env.SUMOGLOGIC_INTERVAL
+	pagesMax: process.env.SUMOLOGIC_PAGES_MAX
 }
 for( var i in envs){
 	if( envs[ i]=== undefined){
