@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 "use strict"
 var
+  assertFields= require( "./util/assertFields"),
   Es6Promisify= require( "es6-promisify"),
   fs= require( "fs"),
   path= require( "path"),
@@ -47,23 +48,9 @@ function config(){
 	]).then(values=> {
 		// merge
 		var val= Object.assign.apply( null, values)
-		var unInt= [ "pageLimit", "pagesMax", "interval"].reduce( function( unInt, cur){
-			var num= val[cur]= Number.parseInt( val[ cur])
-			if( isNaN(num)){
-				if( !unInt){
-					unInt= [ cur]
-				}else{
-					unInt.push( cur)
-				}
-				return unInt
-			}
-		}, null)
-		if( unInt){
-			throw new Error( "Expected numerical value for configuration: "+ unInt.join(", "))
-		}
+		assertFields(val, [ "pageLimit", "pagesMax", "interval"], x => !isNaN(x))
 		return val
 	})
-
 }
 
 module.exports= config

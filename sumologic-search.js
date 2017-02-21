@@ -2,6 +2,7 @@
 "use strict"
 
 var
+  assertFields= require( "./util/assertFields"),
   defaults= require( "./config"),
   Fetch= require( "node-fetch"),
   ObservableDefer= require( "observable-defer")
@@ -18,34 +19,37 @@ var jsonHeaders= {
 	"Accept": "application/json"
 }
 
-function SumologicSearch( queryBody, config){
+function SumologicSearch( body, config){
 	if( this instanceof SumologicSearch){
 		throw new Error("Do not use 'new' on SumologicSearch")
 	}
 	// result is an Observable, built here.
 	var defer= ObservableDefer()
-	// pull in default config
-	if( !config){
-		config= require( "./config")()
-	}
-	if( !config.then){
-		config= Promise.resolve(config)
-	}
 	// POST the job
-	var job= config.then( function( config){
-		config= Object.assign( {}, defaults, config)
-		var headers= Object.assign( {}, jsonHeaders, {cookie: config.cookie}, config.headers)
-		if( !config.accessId|| !config.accessKey|| !config.deployment){
-			throw new Error( "Connection configuration information missing")
+	var job= Promise.all([ body, config, defaults()]).then( function( params){
+		var
+		  body= params[0],
+		  value= Object.assign( {}, params[2], params[1]),
+		  headers= Object.assign( {}, jsonHeaders, {cookie: value.cookie}, value.headers)
+		// validate request
+		if( !body){
+			throw new Error( "No body query provided")
 		}
-		return Fetch( `https://${config.accessId}:${config.accessKey}@${config.deployment}/api/v1/search/jobs`, {
+		if( typeof(body)!== "string"){
+			assertFields( body, [ "query", "from", "to", "timeZone"])
+		}
+		assertFields( value, [ "accessId", "accessKey", "deployment"])
+		// send request
+		body= JSON.stringify( body)
+		return Fetch( `https://${value.accessId}:${value.accessKey}@${value.deployment}/api/v1/search/jobs`, {
 			method: "POST",
 			headers,
-			body: queryBody
+			body
 		}).then( function( fetch){
 			if( fetch.status!== 202){
 				return processError( fetch)
 			}
+			// extract job id, cookie
 			var
 			  loc= fetch.headers.get( "location"),
 			  lastSlash= loc.lastIndexOf( "/"),
@@ -57,24 +61,20 @@ function SumologicSearch( queryBody, config){
 			if( !cookie){
 				throw new Error("Cookie expected")
 			}
-			return {
-				searchJobId,
-				cookie // internally we reuse headers, but export this for exterior users
-			}
+			value.searchJobId= searchJobId
+			value.cookie= cookie
+			return value
 		})
 	})
 	// get currentJobStatus periodically
 	var status= job.then( function( searchJob){
-		if( lastSlash=== "-1"|| !id){
-			throw new Error( "Expected location")
-		}
 		var
 		  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
 		  interval= setInterval( function(){
-			Fetch( `https://${config.accessId}:${config.accessKey}@${config.deployment}/api/v1/search/jobs/${searchJob.searchJobId}`, {headers})
+			Fetch( `https://${searchJob.accessId}:${searchJob.accessKey}@${searchJob.deployment}/api/v1/search/jobs/${searchJob.searchJobId}`, {headers})
 				.then( response=> response.json())
 				.then( defer.next.bind(defer))
-		  }, config.interval)
+		  }, searchJob.interval)
 		return {
 			interval
 		}

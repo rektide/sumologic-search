@@ -19,18 +19,18 @@ function main( query, from, to, timeZone){
 		to= Date.now()
 	}
 	if( !from){
-		from= to - (15 * 60 * 1000)
+		from= to- (15 * 60 * 1000)
+		//from= to
 	}
 	if( !timeZone){
 		timeZone= "UTC"
 	}
 
-	// attempt to read "query" as a file, fallback to it as query-text
-	var contents= es6Promisify( fs.readFile)( query, "utf8").catch( _=> query)
-	// run search
-	var search= contents.then( query=> SumologicSearch({
-		query, from, to, timeZone
-	}))
+	var
+	  // attempt to read "query" as a file, fallback to it as query-text
+	  queryText= es6Promisify( fs.readFile)( query, "utf8").catch( _=> query),
+	  // run search
+	  search= queryText.then( query=> SumologicSearch({ query, from, to, timeZone}))
 	search.then( search=> search.forEach( console.log).then( _=> console.log("done")))
 }
 
