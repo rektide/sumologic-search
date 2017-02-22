@@ -1,18 +1,18 @@
 {
-  "name": "sumologic-search",
-  "version": "1.0.0",
-  "description": "",
-  "main": "sumologic-search.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "es6-promisify": "^5.0.0",
-    "node-fetch": "^1.6.3",
-    "observable-defer": "^1.2.1",
-    "xdg-basedir": "^2.0.0"
-  }
+	"name": "sumologic-search",
+	"version": "1.0.0",
+	"description": "Run a Sumologic Search request",
+	"main": "sumologic-search.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"keywords": ["sumologic"],
+	"author": "rektide de la faye",
+	"license": "X11",
+	"dependencies": {
+		"es6-promisify": "^5.0.0",
+		"node-fetch": "^1.6.3",
+		"observable-defer": "^1.2.1",
+		"xdg-basedir": "^2.0.0"
+	}
 }
