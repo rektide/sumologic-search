@@ -66,14 +66,40 @@ function SumologicSearch( body, config){
 			return value
 		})
 	})
+
 	// get currentJobStatus periodically
 	var status= job.then( function( searchJob){
+		// ingest a current Job Status response
+		function processStatus( response){
+			// handle errors
+			if( response.status&& response.code){
+				if( response.status=== 404){
+					// getting a lot of these but they don't seem to be "real"
+					// filtering them out
+					return
+				}
+				defer.error( response)
+				return
+			}
+			if( response.recordCount=== -1){
+				// still preparing to get any results, skip this
+				return
+			}
+
+			// handle data
+			defer.next( response)
+			if( response.state=== "DONE GATHERING RESULTS"){
+				// all data received
+				defer.complete()
+			}
+		}
+
 		var
 		  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
 		  interval= setInterval( function(){
 			Fetch( `https://${searchJob.accessId}:${searchJob.accessKey}@${searchJob.deployment}/api/v1/search/jobs/${searchJob.searchJobId}`, {headers})
 				.then( response=> response.json())
-				.then( defer.next.bind(defer))
+				.then( processStatus)
 		  }, searchJob.interval)
 		return {
 			interval

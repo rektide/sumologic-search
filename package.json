@@ -12,7 +12,7 @@
   "dependencies": {
     "es6-promisify": "^5.0.0",
     "node-fetch": "^1.6.3",
-    "observable-defer": "^1.2.0",
+    "observable-defer": "^1.2.1",
     "xdg-basedir": "^2.0.0"
   }
 }
