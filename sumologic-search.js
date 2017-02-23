@@ -28,13 +28,13 @@ function SumologicSearch( body, config){
 		throw new Error("Do not use 'new' on SumologicSearch")
 	}
 	// result is an Observable, built here.
-	var jobDefer= ObservableDefer()
+	var jobStatus= ObservableDefer()
 	// POST the job
 	var job= Promise.all([ body, config, defaults()]).then( function( params){
 		var
 		  body= params[0],
-		  value= Object.assign( {}, params[2], params[1]),
-		  headers= Object.assign( {}, jsonHeaders, {cookie: value.cookie}, value.headers)
+		  searchJob= Object.assign( {}, params[2], params[1]),
+		  headers= Object.assign( {}, jsonHeaders, {cookie: searchJob.cookie}, searchJob.headers)
 		// validate request
 		if( !body){
 			throw new Error( "No body query provided")
@@ -42,10 +42,10 @@ function SumologicSearch( body, config){
 		if( typeof(body)!== "string"){
 			assertFields( body, [ "query", "from", "to", "timeZone"])
 		}
-		assertFields( value, [ "accessId", "accessKey", "deployment"])
+		assertFields( searchJob, [ "accessId", "accessKey", "deployment"])
 		// send request
 		body= JSON.stringify( body)
-		return Fetch( url( value, "search/jobs"), {
+		return Fetch( url( searchJob, "search/jobs"), {
 			method: "POST",
 			headers,
 			body
@@ -65,19 +65,14 @@ function SumologicSearch( body, config){
 			if( !cookie){
 				throw new Error("Cookie expected")
 			}
-			value.searchJobId= searchJobId
-			value.cookie= cookie
-			return value
+			searchJob.searchJobId= searchJobId
+			searchJob.cookie= cookie
+			return searchJob
 		})
 	})
 
-	function statusDone(){
-		status.then( function( status){
-			clearInterval( status.interval)
-		})
-	}
-	// get currentJobStatus periodically
-	var status= job.then( function( searchJob){
+	// poll current Job Status periodically, look for end
+	var statusPolling= job.then( function( searchJob){
 		// ingest a current Job Status response
 		function processStatus( response){
 			// handle errors
@@ -87,7 +82,7 @@ function SumologicSearch( body, config){
 					// filtering them out
 					return
 				}
-				jobDefer.error( response)
+				jobStatus.error( response)
 				return
 			}
 			if( response.recordCount=== -1){
@@ -96,29 +91,42 @@ function SumologicSearch( body, config){
 			}
 
 			// handle data
-			jobDefer.next( response)
+			jobStatus.next( response)
+			// we ought eventually get a done gathering, signalling job has finished
 			if( response.state=== "DONE GATHERING RESULTS"){
-				// all data received
-				statusDone()
-				jobDefer.complete()
+				// all data received -- stop polling
+				stopPolling( response)
 			}
 		}
+		// wrap up all polling operations & finish the jobStatus observable
+		function stopPolling( response){
+			// stop polling
+			clearInterval( interval)
+			// job status has finished
+			jobStatus.complete()
+			// resolve the final status
+			finalStatus.resolve( response)
+		}
 
+		// kick off polling
 		var
+		  finalStatus= Promise.defer(),
 		  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
 		  interval= setInterval( function(){
 			Fetch( url( searchJob, "search/jobs/" + searchJob.searchJobId), {headers})
 				.then( response=> response.json())
 				.then( processStatus)
 		  }, searchJob.interval)
-		return {
-			interval
-		}
+		searchJob.stopPolling= function(){ stopPolling }
+		searchJob.finalStatus= finalStatus
+		return searchJob
 	})
 
 	// stop polling when the observable is no longer listened to
-	jobDefer.onunsubscribe= statusDone
-	return jobDefer.stream
+	jobStatus.onunsubscribe= function(){
+		statusPolling.then( statusPolling=> statusPolling.stopPolling)
+	}
+	return jobStatus.stream
 }
 module.exports= SumologicSearch
 
