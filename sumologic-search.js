@@ -118,9 +118,39 @@ function SumologicSearch( body, config){
 				.then( processStatus)
 		  }, searchJob.interval)
 		searchJob.stopPolling= function(){ stopPolling }
-		searchJob.finalStatus= finalStatus
+		searchJob.finalStatus= finalStatus.promise
 		return searchJob
 	})
+	var finalStatus= statusPolling.then( jobStatus=> jobStatus.finalStatus)
+
+	// create an observable for the records or messages results
+	function getResults( isMessage){
+		var resultsDefer= new ObservableDefer()
+		return statusPolling.then( function( searchJob){
+			return searchJob.finalStatus.then( function( finalStatus){
+				var
+				  resultType= isMessage? "message": "record",
+				  count= finalStatus[ resultType+ "Count"],
+				  pages= Math.ceil( count/ searchJob.pageLimit),
+				  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
+				  query= "search/jobs/"+ searchJob.searchJobId+ "/"+ resultType+ "s?limit="+ searchJob.pageLimit+ "&offset="
+				for( var i= 0; i< pages; ++i){
+					var
+					  offset= i* searchJob.pageLimit,
+					  page= Fetch( url( searchJob, query+ offset), {headers}).then(response=> response.json()).then( data=> console.log(JSON.stringify(data)))
+				}
+			})
+		}).then( function(){
+			return resultsDefer.stream
+		})
+	}
+	finalStatus
+		//.then(function(){
+		//	return new Promise(function(resolve){
+		//		setTimeout(resolve, 2000)
+		//	})
+		//})
+		.then( _=> getResults( false))
 
 	// stop polling when the observable is no longer listened to
 	jobStatus.onunsubscribe= function(){
