@@ -14,6 +14,10 @@ function processError( response){
 	})
 }
 
+function url( config, endpoint){
+	return `https://${config.accessId}:${config.accessKey}@${config.deployment}/api/v1/${endpoint}`
+}
+
 var jsonHeaders= {
 	"Content-Type": "application/json",
 	"Accept": "application/json"
@@ -41,7 +45,7 @@ function SumologicSearch( body, config){
 		assertFields( value, [ "accessId", "accessKey", "deployment"])
 		// send request
 		body= JSON.stringify( body)
-		return Fetch( `https://${value.accessId}:${value.accessKey}@${value.deployment}/api/v1/search/jobs`, {
+		return Fetch( url( value, "search/jobs"), {
 			method: "POST",
 			headers,
 			body
@@ -103,7 +107,7 @@ function SumologicSearch( body, config){
 		var
 		  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
 		  interval= setInterval( function(){
-			Fetch( `https://${searchJob.accessId}:${searchJob.accessKey}@${searchJob.deployment}/api/v1/search/jobs/${searchJob.searchJobId}`, {headers})
+			Fetch( url( searchJob, "search/jobs/" + searchJob.searchJobId), {headers})
 				.then( response=> response.json())
 				.then( processStatus)
 		  }, searchJob.interval)
@@ -111,7 +115,6 @@ function SumologicSearch( body, config){
 			interval
 		}
 	})
-
 
 	// stop polling when the observable is no longer listened to
 	jobDefer.onunsubscribe= statusDone
