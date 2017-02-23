@@ -67,6 +67,11 @@ function SumologicSearch( body, config){
 		})
 	})
 
+	function statusDone(){
+		status.then( function( status){
+			clearInterval( status.interval)
+		})
+	}
 	// get currentJobStatus periodically
 	var status= job.then( function( searchJob){
 		// ingest a current Job Status response
@@ -90,6 +95,7 @@ function SumologicSearch( body, config){
 			defer.next( response)
 			if( response.state=== "DONE GATHERING RESULTS"){
 				// all data received
+				statusDone()
 				defer.complete()
 			}
 		}
@@ -107,11 +113,7 @@ function SumologicSearch( body, config){
 	})
 
 	// stop polling when the observable is no longer listened to
-	defer.onunsubscribe= function(){
-		status.then( function( status){
-			clearInterval( status.interval)
-		})
-	}
+	defer.onunsubscribe= statusDone
 	return defer.stream
 }
 module.exports= SumologicSearch
