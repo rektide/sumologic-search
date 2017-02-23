@@ -24,7 +24,7 @@ function SumologicSearch( body, config){
 		throw new Error("Do not use 'new' on SumologicSearch")
 	}
 	// result is an Observable, built here.
-	var defer= ObservableDefer()
+	var jobDefer= ObservableDefer()
 	// POST the job
 	var job= Promise.all([ body, config, defaults()]).then( function( params){
 		var
@@ -83,7 +83,7 @@ function SumologicSearch( body, config){
 					// filtering them out
 					return
 				}
-				defer.error( response)
+				jobDefer.error( response)
 				return
 			}
 			if( response.recordCount=== -1){
@@ -92,11 +92,11 @@ function SumologicSearch( body, config){
 			}
 
 			// handle data
-			defer.next( response)
+			jobDefer.next( response)
 			if( response.state=== "DONE GATHERING RESULTS"){
 				// all data received
 				statusDone()
-				defer.complete()
+				jobDefer.complete()
 			}
 		}
 
@@ -112,9 +112,10 @@ function SumologicSearch( body, config){
 		}
 	})
 
+
 	// stop polling when the observable is no longer listened to
-	defer.onunsubscribe= statusDone
-	return defer.stream
+	jobDefer.onunsubscribe= statusDone
+	return jobDefer.stream
 }
 module.exports= SumologicSearch
 
