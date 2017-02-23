@@ -126,30 +126,33 @@ function SumologicSearch( body, config){
 	// create an observable for the records or messages results
 	function getResults( isMessage){
 		var resultsDefer= new ObservableDefer()
-		return statusPolling.then( function( searchJob){
-			return searchJob.finalStatus.then( function( finalStatus){
+		return Promise.all([ statusPolling, finalStatus]).then( function(state){
+			var
+			  searchJob= state[ 0],
+			  finalStatus= state[ 1],
+			  resultType= isMessage? "message": "record",
+			  count= finalStatus[ resultType+ "Count"],
+			  pages= Math.ceil( count/ searchJob.pageLimit),
+			  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
+			  query= "search/jobs/"+ searchJob.searchJobId+ "/"+ resultType+ "s?limit="+ searchJob.pageLimit+ "&offset="
+			if( count=== undefined){
+				throw new Error("No count found for "+ resultType)
+			}
+			for( var i= 0; i< pages; ++i){
 				var
-				  resultType= isMessage? "message": "record",
-				  count= finalStatus[ resultType+ "Count"],
-				  pages= Math.ceil( count/ searchJob.pageLimit),
-				  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
-				  query= "search/jobs/"+ searchJob.searchJobId+ "/"+ resultType+ "s?limit="+ searchJob.pageLimit+ "&offset="
-				for( var i= 0; i< pages; ++i){
-					var
-					  offset= i* searchJob.pageLimit,
-					  page= Fetch( url( searchJob, query+ offset), {headers}).then(response=> response.json()).then( data=> console.log(JSON.stringify(data)))
-				}
-			})
+				  offset= i* searchJob.pageLimit,
+				  page= Fetch( url( searchJob, query+ offset), {headers}).then(response=> response.json()).then( data=> console.log(JSON.stringify(data)))
+			}
 		}).then( function(){
 			return resultsDefer.stream
 		})
 	}
 	finalStatus
-		//.then(function(){
-		//	return new Promise(function(resolve){
-		//		setTimeout(resolve, 2000)
-		//	})
-		//})
+		.then(function(){
+			return new Promise(function(resolve){
+				setTimeout(resolve, 3000)
+			})
+		})
 		.then( _=> getResults( false))
 
 	// stop polling when the observable is no longer listened to
