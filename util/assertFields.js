@@ -7,7 +7,7 @@
 function assertFields(object, fields, extraCheck){
 	var bads= fields.reduce( function( bads, field){
 		var val= object[ field]
-		if( val=== null|| val=== undefined|| ( extraCheck&& !extraCheck(val))){
+		if( val=== null|| val=== undefined|| (typeof(val)=== "number"&& isNaN(val))|| ( extraCheck&& !extraCheck(val))){
 			if( !bads){
 				bads= [ field]
 			}else{
