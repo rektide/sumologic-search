@@ -29,6 +29,12 @@ class SumologicSearch{
 			var to= this.to instanceof Date? this.to.getTime(): this.to
 			this.from= to- this.from
 		}
+
+		// initialize the values for results, such that anyone can listen whenever they want,
+		// even if the producer has not started yet
+		this._status= ObservableDefer()
+		this._finalStatus= Promise.defer()
+		this._results= ObservableDefer()
 	}
 	get headers(){
 		var cookie= this.cookie? {cookie: this.cookie}: null
@@ -36,6 +42,17 @@ class SumologicSearch{
 	}
 	url( endpoint){
 		return `https://${this.accessId}:${this.accessKey}@${this.deployment}/api/v1/${endpoint}`
+	}
+
+	get status(){
+		return this._status.stream
+	}
+
+	get finalStatus(){
+		return this._finalStatus.promise
+	}
+	get results(){
+		return this._results.stream
 	}
 
 	// post the job
@@ -78,78 +95,73 @@ class SumologicSearch{
 			if( !cookie){
 				throw new Error("Cookie expected in response")
 			}
+			// save results!
 			this.jobId= jobId
 			this.cookie= this.cookie|| cookie
 			return this
 		  })
+		return post
 	}
 
 	pollJob(){
-		// result is an Observable, built here.
-		this.status= ObservableDefer()
-		this.finalStatus= Promise.defer()
+		// run only if polling not started
+		if( this._finalStatus.started){
+			// return existing polling
+			return this.finalStatus
+		}
+		this._finalStatus.started= true
 
-		// poll current Job Status periodically, look for end
-		var statusPolling= job.then( function( searchJob){
-			// ingest a current Job Status response
-			function processStatus( response){
-				// handle errors
-				if( response.status&& response.code){
-					if( response.status=== 404){
-						// getting a lot of these but they don't seem to be "real"
-						// filtering them out
-						return
-					}
-					jobStatus.error( response)
+		// wrap up all polling operations & finish the jobStatus observable
+		var stopPolling= response=> {
+			// stop polling
+			clearInterval( this.polling)
+			// job status has finished
+			this._status.complete()
+			// resolve the final status
+			this._finalStatus.resolve( response)
+		}
+		// ingest a current Job Status response
+		var ingestStatus= response=> {
+			// handle errors
+			if( response.status&& response.code){
+				if( response.status=== 404){
+					// getting a lot of these but they don't seem to be "real"
+					// filtering them out
 					return
 				}
-				if( response.recordCount=== -1){
-					// still preparing to get any results, skip this
-					return
-				}
-	
-				// handle data
-				jobStatus.next( response)
-				// we ought eventually get a done gathering, signalling job has finished
-				if( response.state=== "DONE GATHERING RESULTS"){
-					// all data received -- stop polling
-					stopPolling( response)
-				}
+				this._status.error( response)
+				this._finalStatus.reject( response)
+				return
 			}
-			// wrap up all polling operations & finish the jobStatus observable
-			function stopPolling( response){
-				// stop polling
-				clearInterval( interval)
-				// job status has finished
-				jobStatus.complete()
-				// resolve the final status
-				finalStatus.resolve( response)
+			if( response.recordCount=== -1){
+				// still preparing to get any results, skip this
+				return
 			}
 	
+			// handle data
+			this._status.next( response)
+			// we ought eventually get a done gathering, signalling job has finished
+			if( response.state=== "DONE GATHERING RESULTS"){
+				// all data received -- stop polling
+				stopPolling( response)
+			}
+		}
+
+		// poll current Job Status periodically
+		return this.postJob().then( ()=> {
 			// kick off polling
 			var
-			  finalStatus= Promise.defer(),
-			  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
-			  interval= setInterval( function(){
-				Fetch( url( searchJob, "search/jobs/" + searchJob.searchJobId), {headers})
+			  url= this.url( "search/jobs"+ this.jobId),
+			  headers= this.headers,
+			  interval= setInterval(()=> {
+				Fetch( url, {headers})
 					.then( response=> response.json())
 					.then( processStatus)
-			  }, searchJob.interval)
-			searchJob.stopPolling= function(){ stopPolling }
-			searchJob.finalStatus= finalStatus.promise
-			return searchJob
+			  }, this.interval)
+			return this.finalStatus
 		})
-		return this._jobStatus.stream
-	}
-}
-
-function SumologicSearch( body, config){
-	if( !(this instanceof SumologicSearch)){
-		throw new Error("Do not use 'new' on SumologicSearch")
 	}
 
-		var finalStatus= statusPolling.then( jobStatus=> jobStatus.finalStatus)
-	// create an observable for the records or messages results
 	function getResults( isMessage){
 		var resultsDefer= new ObservableDefer()
 		return Promise.all([ statusPolling, finalStatus]).then( function(state){
