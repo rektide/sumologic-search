@@ -5,6 +5,7 @@ var
   assertFields= require( "./util/assertFields"),
   defaults= require( "./config"),
   Fetch= require( "node-fetch"),
+  most= require( "most"),
   ObservableDefer= require( "observable-defer")
 
 function processError( response){
@@ -19,6 +20,16 @@ var jsonHeaders= {
 	"Accept": "application/json"
 }
 
+/**
+ * A Sumologic Search, via their Search API.
+ * @param {object} [config] - Configuration to use for search. These options are merged into `this`.
+ * @param {string} query - the query to run
+ * @param {Date|epoch} [config.from=-15*60*1000] - Time to start searching from, or a negative number of ms before `option.to`
+ * @param {Date|epoch} [config.to=Date.now()] - Time to start searching from, in epoch or Date form.
+ * @param {object} [config.headers] - Headers to use in the request
+ * @param {string} [config.cookies] - Cookies to use during request (will overwrite a cookie set in headers)
+ * @param {string} [config.timeZone=UTC] - TimeZone to search with.
+ */
 class SumologicSearch{
 	constructor( config){
 		Object.assign( this, defaults(), config)
@@ -34,28 +45,43 @@ class SumologicSearch{
 		// even if the producer has not started yet
 		this._status= ObservableDefer()
 		this._finalStatus= Promise.defer()
-		this._results= ObservableDefer()
+		this._records= ObservableDefer()
+		this.messages= most.multicast( this._messages.stream)
+		this._messages= ObservableDefer()
+		this.records= most.multicast( this._records.stream)
 	}
+	/**
+	 * Compute a set of headers to use when making Sumologic API request pertaining to this search
+	 */
 	get headers(){
 		var cookie= this.cookie? {cookie: this.cookie}: null
 		return Object.assign( {}, jsonHeaders, this.headers, cookie)
 	}
+	/**
+	 * Compute a URL to use to reach Sumologic.
+	 * @param {string} endpoint - the piece of the url following the /api/v1 prefix
+	 */ 
 	url( endpoint){
 		return `https://${this.accessId}:${this.accessKey}@${this.deployment}/api/v1/${endpoint}`
 	}
-
+	/**
+	 * Get the job status stream
+	 * Note that this is not setup as a multicast stream- at most one consumer is expected!
+	 */
 	get status(){
 		return this._status.stream
 	}
-
+	/**
+	 * Get the final job status reported, after all results are gathered.
+	 */ 
 	get finalStatus(){
 		return this._finalStatus.promise
 	}
-	get results(){
-		return this._results.stream
-	}
 
-	// post the job
+	/**
+	 * Fire off the job to the Sumologic endpoint, getting back the job id.
+	 * @returns a Promise that resolves to this once `jobId` and `cookie` are available.
+	 */ 
 	postJob(){
 		if( this.jobId){
 			return Promise.resolve( this)
@@ -103,6 +129,10 @@ class SumologicSearch{
 		return post
 	}
 
+	/**
+	 * Poll the status of the job while results are gathered
+	 * @returns a promise for the final status of gathered results
+	 */
 	pollJob(){
 		// run only if polling not started
 		if( this._finalStatus.started){
@@ -162,8 +192,32 @@ class SumologicSearch{
 		})
 	}
 
-	function getResults( isMessage){
-		var resultsDefer= new ObservableDefer()
+
+
+	/**
+	 * Get an observable for the message logs returned by sumologic
+	 * @returns an observable of all messages returned by Sumologic
+	 */
+	readMessages(){
+		return this._readResults( "message")
+	}
+
+	/**
+	 * Get an observable for the aggregate records returned by sumologic. This is only usable for queries with aggregation.
+	 * @returns an observable of all records returned by Sumologic
+	 */
+	readRecords(){
+		return this._readResults( "record")
+	}
+
+	/**
+	 */
+	_readResults( aggregateRecords){
+		if( this._results.started){
+			return this.results
+		}
+		this.finalStatus.then
+		
 		return Promise.all([ statusPolling, finalStatus]).then( function(state){
 			var
 			  searchJob= state[ 0],
@@ -185,6 +239,8 @@ class SumologicSearch{
 			return resultsDefer.stream
 		})
 	}
+
+
 	finalStatus
 		.then(function(){
 			return new Promise(function(resolve){
