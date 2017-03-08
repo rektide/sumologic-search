@@ -20,6 +20,12 @@ var jsonHeaders= {
 	"Accept": "application/json"
 }
 
+function tick( value){
+	return new Promise( resolve){
+		process.nextTick(()=> resolve( value))
+	}
+}
+
 /**
  * A Sumologic Search, via their Search API.
  * @param {object} [config] - Configuration to use for search. These options are merged into `this`.
@@ -45,9 +51,9 @@ class SumologicSearch{
 		// even if the producer has not started yet
 		this._status= ObservableDefer()
 		this._finalStatus= Promise.defer()
-		this._records= ObservableDefer()
-		this.messages= most.multicast( this._messages.stream)
 		this._messages= ObservableDefer()
+		this.messages= most.multicast( this._messages.stream)
+		this._records= ObservableDefer()
 		this.records= most.multicast( this._records.stream)
 	}
 	/**
@@ -211,49 +217,62 @@ class SumologicSearch{
 	}
 
 	/**
+	 * Fetch either "message" or "record" results
+	 * @internal
+	 * @param {string} countType - either "message" or "record" results
 	 */
-	_readResults( aggregateRecords){
-		if( this._results.started){
-			return this.results
+	_readResults( resultType){
+		if( resultType!== "message"&& resultType!== "record"){
+			throw new Error( "Unknown kind of results '"+ resultType+ "'")
 		}
-		this.finalStatus.then
-		
-		return Promise.all([ statusPolling, finalStatus]).then( function(state){
+		var resultStream= this[ "_"+ resultType]
+		if( resultStream.started){
+			return resultStream.stream
+		}
+		resultStream.started= true
+
+		// wait for all results to be gathered
+		return this.pollJob().then( finalStatus=> {
 			var
-			  searchJob= state[ 0],
-			  finalStatus= state[ 1],
-			  resultType= isMessage? "message": "record",
-			  count= finalStatus[ resultType+ "Count"],
-			  pages= Math.ceil( count/ searchJob.pageLimit),
-			  headers= Object.assign( {}, jsonHeaders, { cookie: searchJob.cookie}),
-			  query= "search/jobs/"+ searchJob.searchJobId+ "/"+ resultType+ "s?limit="+ searchJob.pageLimit+ "&offset="
+			  total= finalStatus[ resultType+ "Count"],
+			  pageLimit= this.pageLimit,
+			  pages= Math.ceil( total/ pageLimit),
+			  headers= this.headers(),
+			  query= this.url( "search/jobs/"+ this.jobId+ "/"+ resultType+ "s?limit="+ pageLimit+ "&offset="),
+			  currentPage= 0
 			if( count=== undefined){
 				throw new Error("No count found for "+ resultType)
 			}
-			for( var i= 0; i< pages; ++i){
-				var
-				  offset= i* searchJob.pageLimit,
-				  page= Fetch( url( searchJob, query+ offset), {headers}).then(response=> response.json()).then( data=> console.log(JSON.stringify(data)))
+			function consumePage( page){
+				page[ resultType+ "s"].forEach( message=> resultStream.next( message.map))
+				fetchPage( ++currentPage)
+				return page
 			}
-		}).then( function(){
-			return resultsDefer.stream
+			function fetchPage( page){
+				page= page|| 0
+				if( page> pages){
+					return
+				}
+				var
+				  offset= page* pageLimit
+				  page= Fetch( query+ offset, {headers})
+					.then( response=> response.json())
+				page.then( tick)
+					.then( page=> process.nextTick(()=> consumePage(page)))
+				return page
+			}
+			var page0= fetchPage( 0)
+			page0.then( page=> resultStream.fields= response.fields)
+			return page0
 		})
 	}
 
-
-	finalStatus
-		.then(function(){
-			return new Promise(function(resolve){
-				setTimeout(resolve, 3000)
-			})
-		})
-		.then( _=> getResults( false))
-
-	// stop polling when the observable is no longer listened to
-	jobStatus.onunsubscribe= function(){
-		statusPolling.then( statusPolling=> statusPolling.stopPolling)
+	/**
+	 * "Although search jobs ultimately time out in the Sumo Logic backend, it's a good practice to explicitly cancel a search job when it is not needed anymore."
+	 */
+	deleteJob(){
 	}
-	return jobStatus.stream
+
 }
 module.exports= SumologicSearch
 
