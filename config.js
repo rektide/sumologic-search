@@ -22,8 +22,7 @@ function defaults(){
 		pagesMax: 50,
 		to: Date.now(),
 		from: -(15 * 60 * 1000),
-		timeZone: "UTC",
-		cookie: null
+		timeZone: "UTC"
 	}
 }
 
@@ -58,7 +57,6 @@ function config(){
 	  defs= defaults(),
 	  conf= Object.assign( {}, defs, configFile(), envs)
 	for( var numField of numeric){
-		console.log("FIELD", numField, conf[ numField])
 		conf[ numField]= Number.parseInt( conf[ numField])
 	}
 	assertFields( conf, Object.keys( defs))

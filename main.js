@@ -60,10 +60,13 @@ function main( query, from, to, timeZone){
 	  // attempt to read "query" as a file, fallback to it as query-text
 	  queryText= es6Promisify( fs.readFile)( query, "utf8").catch( _=> query),
 	  // run search
-	  search= queryText.then( query=> SumologicSearch({ query, from, to, timeZone}))
-	search.then( search=> search.forEach( console.log).then( _=> console.log("done")))
+	  search= queryText
+		.then( query=> ({ query, from, to, timeZone}))
+		.then( opts=> new SumologicSearch(opts))
+		.then( search=> search.readMessages())
+		.then( messages=> messages.forEach( console.log))
+		.then( ()=> console.log("done"))
 }
-
 module.exports= main
 if( require.main=== module){
 	main()

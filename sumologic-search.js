@@ -21,9 +21,7 @@ var jsonHeaders= {
 }
 
 function tick( value){
-	return new Promise( resolve){
-		process.nextTick(()=> resolve( value))
-	}
+	return new Promise( resolve=> process.nextTick(()=> resolve( value)))
 }
 
 /**
@@ -33,15 +31,14 @@ function tick( value){
  * @param {Date|epoch} [config.from=-15*60*1000] - Time to start searching from, or a negative number of ms before `option.to`
  * @param {Date|epoch} [config.to=Date.now()] - Time to start searching from, in epoch or Date form.
  * @param {object} [config.headers] - Headers to use in the request
- * @param {string} [config.cookies] - Cookies to use during request (will overwrite a cookie set in headers)
+ * @param {string} [config.cookie] - Cookies to use during request (will overwrite a cookie set in headers)
  * @param {string} [config.timeZone=UTC] - TimeZone to search with.
  */
 class SumologicSearch{
 	constructor( config){
-		Object.assign( this, defaults(), config)
-		if( this.headers&& this.headers.cookie){
-			this.cookie= this.headers.cookie
-		}
+		var defs= defaults()
+		Object.assign( this, defs, config)
+		this._headers= Object.assign({}, defs.headers, config&& config.headers, {cookie: config&& config.cookie})
 		if( this.from< 0){
 			var to= this.to instanceof Date? this.to.getTime(): this.to
 			this.from= to- this.from
@@ -56,12 +53,13 @@ class SumologicSearch{
 		this._records= ObservableDefer()
 		this.records= most.multicast( this._records.stream)
 	}
+
 	/**
 	 * Compute a set of headers to use when making Sumologic API request pertaining to this search
 	 */
 	get headers(){
 		var cookie= this.cookie? {cookie: this.cookie}: null
-		return Object.assign( {}, jsonHeaders, this.headers, cookie)
+		return Object.assign( {}, jsonHeaders, this._headers, cookie)
 	}
 	/**
 	 * Compute a URL to use to reach Sumologic.
@@ -111,16 +109,16 @@ class SumologicSearch{
 			headers,
 			body
 		  }).then( post=> {
-			if( fetch.status!== 202){
-				return processError( fetch)
+			if( post.status!== 202){
+				return processError( post)
 			}
 
 			// extract job id, cookie
 			var
-			  loc= fetch.headers.get( "location"),
+			  loc= post.headers.get( "location"),
 			  lastSlash= loc.lastIndexOf( "/"),
 			  jobId= loc.substring( lastSlash+ 1),
-			  cookie= fetch.headers.get( "set-cookie")
+			  cookie= post.headers.get( "set-cookie")
 			if( lastSlash=== -1|| !jobId){
 				throw new Error("Job ID expected in response")
 			}
@@ -192,7 +190,7 @@ class SumologicSearch{
 			  interval= setInterval(()=> {
 				Fetch( url, {headers})
 					.then( response=> response.json())
-					.then( processStatus)
+					.then( ingestStatus)
 			  }, this.interval)
 			return this.finalStatus
 		})
@@ -225,7 +223,7 @@ class SumologicSearch{
 		if( resultType!== "message"&& resultType!== "record"){
 			throw new Error( "Unknown kind of results '"+ resultType+ "'")
 		}
-		var resultStream= this[ "_"+ resultType]
+		var resultStream= this[ "_"+ resultType+ "s"]
 		if( resultStream.started){
 			return resultStream.stream
 		}
@@ -258,7 +256,7 @@ class SumologicSearch{
 				  page= Fetch( query+ offset, {headers})
 					.then( response=> response.json())
 				page.then( tick)
-					.then( page=> process.nextTick(()=> consumePage(page)))
+					.then( consumePage( page))
 				return page
 			}
 			var page0= fetchPage( 0)
