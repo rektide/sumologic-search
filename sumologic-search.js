@@ -15,6 +15,15 @@ function processError( response){
 	})
 }
 
+function okStatusFilter( response){
+	if( response.status> 299){
+		return response
+			.text()
+			.then( err=> { throw new Error("Bad response status "+ response.status+ ": "+ err)})
+	}
+	return response
+}
+
 var jsonHeaders= {
 	"Content-Type": "application/json",
 	"Accept": "application/json"
@@ -189,6 +198,7 @@ class SumologicSearch{
 			  headers= this.headers,
 			  interval= setInterval(()=> {
 				Fetch( url, {headers})
+					.then( okStatusFilter)
 					.then( response=> response.json())
 					.then( ingestStatus)
 			  }, this.interval)
@@ -254,6 +264,7 @@ class SumologicSearch{
 				var
 				  offset= page* pageLimit
 				  page= Fetch( query+ offset, {headers})
+					.then( okStatusFilter)
 					.then( response=> response.json())
 				page.then( tick)
 					.then( consumePage( page))
